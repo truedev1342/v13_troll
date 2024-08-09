@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "extra.h"
-
+char bufStr[MAX_N];
 /* Creates a copy of the origin string */
 char* copyString(const char* origin) {
     char* result;
@@ -18,25 +18,6 @@ char* copyString(const char* origin) {
     return result;                         /* Return the result string */
 }
 
-/* Concatenates two strings and returns the result */
-char* concatString(const char* origin, const char* suffix) {
-    char* result;
-    int i;
-    int sz_o = strlen(origin);
-    int sz_s = strlen(suffix);
-    result = malloc(sz_o + sz_s + 1);   /* Allocate memory for the result */
-
-    for (i = 0; i < sz_o; i ++) {
-        result[i] = origin[i];
-    }
-    for (i = 0; i < sz_s; i ++) {
-        result[i + sz_o] = suffix[i];
-    }
-
-    result[sz_s + sz_o] = '\0';                  /* Terminate the concatenated string */
-
-    return result;              /* Return the concatenated string */
-}
 
 /* Converts a string to an integer */
 int parseInt(const char* origin) {
@@ -61,7 +42,6 @@ static int checkSeperator(char chr) {
 const char* firstPart(const char* origin) {
     char chr;
     int sz = 0;
-    char* result;
     while (isspace(*origin)) {
         origin++;
     }
@@ -71,17 +51,41 @@ const char* firstPart(const char* origin) {
         chr = '\0';
     }
     if (checkSeperator(chr)) {
-        result = malloc(2);
-        result[0] = chr;
-        result[1] = '\0';
-        return result;                         /* Return result if separator */
+        bufStr[0] = chr;
+        bufStr[1] = '\0';
+        return bufStr;                         /* Return result if separator */
     }
-    result = malloc(strlen(origin) + 1);
     for (chr = *origin; !checkSeperator(chr); origin ++, chr = *origin) {
-        result[sz ++] = chr;
+        bufStr[sz ++] = chr;
     }
-    result[sz] = '\0'; /* Terminate result */
-    return result;                             /* Return result */
+    bufStr[sz] = '\0'; /* Terminate result */
+    return bufStr;                             /* Return result */
+}
+
+/* Concatenates two strings and returns the result */
+char* concatString(const char* origin, const char* suffix) {
+    char* result;
+    char* iter;
+    int sz_o = strlen(origin);
+    int sz_s = strlen(suffix);
+    result = malloc(sz_o + sz_s + 1);   /* Allocate memory for the result */
+    iter = result;
+    
+    while(*origin != '\0') {
+        *iter = *origin;
+        origin ++;
+        iter ++;
+    }
+
+    while(*suffix != '\0') {
+        *iter = *suffix;
+        suffix ++;
+        iter ++;
+    }
+
+    *iter = '\0';
+
+    return result;
 }
 
 /* Skips separators and whitespace in the string */

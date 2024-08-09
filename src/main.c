@@ -24,6 +24,9 @@ int main(int argc, char* argv[]) {
     FILE* objOutputFile;
     /* compiler for compile code */
     Compiler* mycomp;
+
+    /* full file name str*/
+    char* fullFilePathStr;
     if (argc == 2) {
         /* get filenameStr from parameter */
         filenameStr = argv[1];
@@ -32,7 +35,9 @@ int main(int argc, char* argv[]) {
         mycomp = createCompiler();
 
         /* Open input source file (.as) */
-        inputFile = fopen(concatString(filenameStr, ".as"), "r");
+        fullFilePathStr = concatString(filenameStr, ".as");
+        inputFile = fopen(fullFilePathStr, "r");
+        free(fullFilePathStr);
 
         if (inputFile == NULL) {
             /* Print error if source file cannot be opened */
@@ -43,7 +48,9 @@ int main(int argc, char* argv[]) {
         errorLogFile = stderr; /* Output errors to stderr */
 
         /* Create post-compiler output file (.am) */
-        outputFile = fopen(concatString(filenameStr, ".am"), "w+");
+        fullFilePathStr = concatString(filenameStr, ".am");
+        outputFile = fopen(fullFilePathStr, "w+");
+        free(fullFilePathStr);
 
         /* confirm first compiling with mycomp*/
         firstCompile(mycomp, inputFile, outputFile, errorLogFile);
@@ -54,7 +61,9 @@ int main(int argc, char* argv[]) {
             fseek(outputFile, 0, SEEK_SET);
 
             /* Create output file and open(.ob) */
-            objOutputFile = fopen(concatString(filenameStr, ".ob"), "w+");
+            fullFilePathStr = concatString(filenameStr, ".ob");
+            objOutputFile = fopen(fullFilePathStr, "w+");
+            free(fullFilePathStr);
 
             /* confirm second compiling with mycomp */
             secondCompile(mycomp, outputFile, objOutputFile);
@@ -63,14 +72,18 @@ int main(int argc, char* argv[]) {
             
             if (mycomp->szExternals != 0) {
                 /* Create external output file (.ext) */
-                extOutputFile = fopen(concatString(filenameStr, ".ext"), "w+");
+                fullFilePathStr = concatString(filenameStr, ".ext");
+                extOutputFile = fopen(fullFilePathStr, "w+");
+                free(fullFilePathStr);
                 writeExternalsToFile(mycomp, extOutputFile);
                 fclose(extOutputFile); /* Close external output file */
             }
             /* output to file when there are entries to output */
             if (mycomp->szEntries != 0) { 
                 /* Create entry output file and open (.ent) */
-                entOutputFile = fopen(concatString(filenameStr, ".ent"), "w+");
+                fullFilePathStr = concatString(filenameStr, ".ent");
+                entOutputFile = fopen(fullFilePathStr, "w+");
+                free(fullFilePathStr);
                 writeEntriesToFile(mycomp, entOutputFile);
                 /* Close entry output file */
                 fclose(entOutputFile); 
