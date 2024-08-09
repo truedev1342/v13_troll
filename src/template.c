@@ -83,8 +83,8 @@ Template* findInTemplates(Templates* current, const char* searching) {
     return NULL;
 }
 
-/* Record a new Template with the given title in Templates */
-Template* recordTemplates(Templates* current, const char* title) {
+/* Insert a new Template with the given title in Templates */
+Template* insertTemplates(Templates* current, const char* title) {
     int i;
     Template* template;
 

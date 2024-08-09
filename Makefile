@@ -3,7 +3,7 @@ CC = gcc
 CFLAGS = -Wall -ansi -pedantic -I include -g
 
 # Source files
-SRC = src/main.c src/code.c src/command.c src/extra.c src/compiler.c src/template.c
+SRC = src/main.c src/code.c src/command.c src/extra.c src/compiler.c src/template.c src/output.c
 
 # Output executable
 TARGET = assembler

@@ -6,448 +6,371 @@
 #include "code.h"
 #include "command.h"
 #include "compiler.h"
-
-/* Static function declarations */
-static int Parser_recordSymbol(Compiler* compiler, const char* name);
-static Symbol* Parser_searchSymbol(Compiler* compiler, const char* name);
-static void Parser_parseLine(Compiler* compiler, FILE* fileAfterTemplate, FILE* fileErrors, const char* string, int lineNumber);
+#include "output.h"
 
 /* Allocate memory for a new Compiler structure and initialize its fields */
-Compiler* Parser_new() {
-    Compiler* compiler;
+Compiler* createCompiler() {
+    Compiler* mycomp;
 
-    compiler = malloc(sizeof(*compiler)); /* Allocate memory for the compiler structure */
+    mycomp = malloc(sizeof(*mycomp)); /* Allocate memory for the compiler structure */
 
-    compiler->templates = createTemplates(); /* Initialize templates */
-    compiler->templateInside = NULL; /* Initialize templateInside */
+    mycomp->tempList = createTemplates(); /* Initialize templates */
+    mycomp->tempInside = NULL; /* Initialize tempInside */
 
-    compiler->programCounter = 100; /* Initialize programCounter */
-    compiler->szCode = 0; /* Initialize szCode */
-    compiler->szCommand = 0; /* Initialize szCommand */
-    compiler->cntErrors = 0; /* Initialize cntErrors */
+    mycomp->numProgram = 100; /* Initialize numProgram */
+    mycomp->szCode = 0; /* Initialize szCode */
+    mycomp->szCommand = 0; /* Initialize szCommand */
+    mycomp->cntErrors = 0; /* Initialize cntErrors */
 
-    compiler->arrayExternals = NULL; /* Initialize arrayExternals */
-    compiler->szExternals = 0; /* Initialize szExternals */
+    mycomp->arrayExternals = NULL; /* Initialize arrayExternals */
+    mycomp->szExternals = 0; /* Initialize szExternals */
 
-    compiler->arrayEntries = NULL; /* Initialize arrayEntries */
-    compiler->szEntries = 0; /* Initialize szEntries */
+    mycomp->arrayEntries = NULL; /* Initialize arrayEntries */
+    mycomp->szEntries = 0; /* Initialize szEntries */
 
-    compiler->arraySymbols = NULL; /* Initialize arraySymbols */
-    compiler->szSymbols = 0; /* Initialize szSymbols */
+    mycomp->arraySymbols = NULL; /* Initialize arraySymbols */
+    mycomp->szSymbols = 0; /* Initialize szSymbols */
 
-    return compiler; /* Return the initialized compiler structure */
+    return mycomp; /* Return the initialized compiler structure */
 }
 
 /* Free memory allocated for a Compiler structure and its fields */
-void Parser_delete(Compiler* compiler) {
-    int place;
+void removeCompiler(Compiler* mycomp) {
+    int i;
 
-    removeTemplates(compiler->templates); /* Free memory allocated for templates */
+    removeTemplates(mycomp->tempList); /* Free memory allocated for templates */
 
     /* Free memory allocated for each entry in arrayEntries */
-    for (place = 0; place < compiler->szEntries; place++) {
-        free(compiler->arrayEntries[place]);
+    for (i = 0; i < mycomp->szEntries; i++) {
+        free(mycomp->arrayEntries[i]);
     }
 
     /* Free memory allocated for each external in arrayExternals */
-    for (place = 0; place < compiler->szExternals; place++) {
-        free(compiler->arrayExternals[place]->name);
-        free(compiler->arrayExternals[place]);
+    for (i = 0; i < mycomp->szExternals; i++) {
+        free(mycomp->arrayExternals[i]->name);
+        free(mycomp->arrayExternals[i]);
     }
 
     /* Free memory allocated for each local in arraySymbols */
-    for (place = 0; place < compiler->szSymbols; place++) {
-        free(compiler->arraySymbols[place]->name);
-        free(compiler->arraySymbols[place]);
+    for (i = 0; i < mycomp->szSymbols; i++) {
+        free(mycomp->arraySymbols[i]->name);
+        free(mycomp->arraySymbols[i]);
     }
 
-    free(compiler->arrayEntries); /* Free arrayEntries array */
-    free(compiler->arrayExternals); /* Free arrayExternals array */
-    free(compiler->arraySymbols); /* Free arraySymbols array */
-    free(compiler); /* Free memory allocated for the compiler structure */
+    free(mycomp->arrayEntries); /* Free arrayEntries array */
+    free(mycomp->arrayExternals); /* Free arrayExternals array */
+    free(mycomp->arraySymbols); /* Free arraySymbols array */
+    free(mycomp); /* Free memory allocated for the compiler structure */
+}
+
+void confirmEndmacrInFirstCompile(Compiler* mycomp, FILE* inputFile, FILE* outputFile, FILE* errorFile, int commandNum, const char* cmdString) {
+    const char* firstCmd;
+    if (mycomp->tempInside == NULL) { /* Check if not inside a template */
+        fprintf(
+            errorFile,
+            "on line #%d: not expecting template closure\n",
+            commandNum
+        );
+        mycomp->cntErrors++; /* Increment error count */
+    }
+
+    firstCmd = firstPart(cmdString); /* Get the next piece of string */
+    cmdString = restString(cmdString); /* Skip to the next piece */
+
+    if (*firstCmd != '\0') { /* Check if piece is not empty */
+        fprintf(
+            errorFile,
+            "on line #%d: not expecting piece \"%s\" after template closure\n",
+            commandNum,
+            firstCmd
+        );
+        mycomp->cntErrors++; /* Increment error count */
+    }
+    mycomp->tempInside = NULL; /* Reset tempInside */
+}
+
+void confirmMacrInFirstCompile(Compiler* mycomp, FILE* inputFile, FILE* outputFile, FILE* errorFile, int commandNum, const char* cmdString) {
+    const char* firstCmd;
+    char templateStr[MAX_N];
+    Symbol* label;
+    Template* template;
+    firstCmd = firstPart(cmdString); /* Get the next piece of string */
+    cmdString = restString(cmdString); /* Skip to the next piece */
+    strcpy(templateStr, firstCmd); /* Copy piece to stringTemplate */
+
+    firstCmd = firstPart(cmdString); /* Get the next piece of string */
+    cmdString = restString(cmdString); /* Skip to the next piece */
+
+    if (*firstCmd != '\0') { /* Check if piece is not empty */
+        fprintf(
+            errorFile,
+            "on line #%d: not expecting piece \"%s\" after template opening\n",
+            commandNum,
+            firstCmd
+        );
+        mycomp->cntErrors++; /* Increment error count */
+    }
+
+    label = searchSymbol(mycomp, templateStr); /* Search for local label */
+    if (label != NULL) { /* Check if label exists */
+        fprintf(
+            errorFile,
+            "on line #%d: name \"%s\" for template already used elsewhere as label\n",
+            commandNum,
+            templateStr
+        );
+        mycomp->cntErrors++; /* Increment error count */
+        return; /* Continue to next iteration */
+    }
+
+    template = findInTemplates(mycomp->tempList, templateStr); /* Search for existing template */
+    if (template != NULL) { /* Check if template exists */
+        fprintf(
+            errorFile,
+            "on line #%d: template with name \"%s\" already declared elsewhere\n",
+            commandNum,
+            templateStr
+        );
+        mycomp->cntErrors++; /* Increment error count */
+        return; /* Continue to next iteration */
+    }
+
+    mycomp->tempInside = insertTemplates(mycomp->tempList, templateStr); /* Insert new template */
+
 }
 
 /* Parse the first pass of assembler code */
-void Parser_first(Compiler* compiler, FILE* fileAssembler, FILE* fileAfterTemplate, FILE* fileErrors) {
-    char buffer[MAX_N];
-    char stringTemplate[MAX_N];
-    char stringSymbol[MAX_N];
-    char stringCall[MAX_N];
+void firstCompile(Compiler* mycomp, FILE* inputFile, FILE* outputFile, FILE* errorFile) {
+    char bufStr[MAX_N];
+    char symbolStr[MAX_N];
+    char callStr[MAX_N];
 
-    int place;
-    int lineNumber;
-    int callTemplate;
+    int i;
+    int commandNum = 0; /* Initialize commandNum */
+    int checkTemplate;
 
-    const char* base;
-    const char* piece;
-    const char* string;
-
-    Symbol* label;
+    const char* original;
+    const char* firstCmd;
+    const char* cmdString;
     Template* template;
 
-    lineNumber = 0; /* Initialize lineNumber */
-
-    compiler->szCode = 0; /* Initialize szCode */
-    compiler->szCommand = 0; /* Initialize szCommand */
-    compiler->cntErrors = 0; /* Initialize cntErrors */
-
-    compiler->programCounter = 100; /* Initialize programCounter */
+    mycomp->cntErrors = 0; /* Initialize cntErrors */
+    mycomp->szCode = 0; /* Initialize szCode */
+    mycomp->szCommand = 0; /* Initialize szCommand */
+    mycomp->numProgram = 100; /* Initialize numProgram */
 
     /* Read lines from fileAssembler until EOF */
-    while (fgets(buffer, MAX_N, fileAssembler) != NULL) {
-        string = buffer; /* Initialize string */
-
-        lineNumber++; /* Increment lineNumber */
-
-        base = string; /* Set base pointer to string */
+    while (fgets(bufStr, MAX_N, inputFile) != NULL) {
+        cmdString = bufStr; /* Initialize string */
+        commandNum++; /* Increment commandNum */
+        original = cmdString; /* Set base pointer to string */
         
         /* Process labels */
         while (1) {
-            piece = firstPart(string); /* Get the next piece of string */
-            string = restString(string); /* Skip to the next piece */
-            strcpy(stringSymbol, piece); /* Copy piece to stringSymbol */
+            firstCmd = firstPart(cmdString); /* Get the next piece of string */
+            cmdString = restString(cmdString); /* Skip to the next piece */
+            strcpy(symbolStr, firstCmd); /* Copy piece to stringSymbol */
 
-            piece = firstPart(string); /* Get the next piece of string */
-            string = restString(string); /* Skip to the next piece */
+            firstCmd = firstPart(cmdString); /* Get the next piece of string */
+            cmdString = restString(cmdString); /* Skip to the next piece */
             
-            if (*piece != ':') { /* Check if piece is not a colon */
+            if (*firstCmd != ':') { /* Check if piece is not a colon */
                 break; /* Exit loop */
             }
 
-            base = string; /* Update base pointer */
+            original = cmdString; /* Update base pointer */
 
-            if (!Parser_recordSymbol(compiler, stringSymbol)) { /* Record local label */
+            if (!insertSymbol(mycomp, symbolStr)) { /* Insert local label */
                 fprintf(
-                    fileErrors,
+                    errorFile,
                     "on line #%d: label name \"%s\" already used elsewhere\n",
-                    lineNumber,
-                    stringSymbol
+                    commandNum,
+                    symbolStr
                 );
-                compiler->cntErrors++; /* Increment error count */
+                mycomp->cntErrors++; /* Increment error count */
             }
         }
 
-        string = base; /* Reset string */
+        cmdString = original; /* Reset string */
 
-        piece = firstPart(string); /* Get the next piece of string */
-        string = restString(string); /* Skip to the next piece */
+        firstCmd = firstPart(cmdString); /* Get the next piece of string */
+        cmdString = restString(cmdString); /* Skip to the next piece */
 
-        if (strcmp(piece, "endmacr") == 0) { /* Check for end of template */
-            if (compiler->templateInside == NULL) { /* Check if not inside a template */
-                fprintf(
-                    fileErrors,
-                    "on line #%d: not expecting template closure\n",
-                    lineNumber
-                );
-                compiler->cntErrors++; /* Increment error count */
-            }
-
-            piece = firstPart(string); /* Get the next piece of string */
-            string = restString(string); /* Skip to the next piece */
-
-            if (*piece != '\0') { /* Check if piece is not empty */
-                fprintf(
-                    fileErrors,
-                    "on line #%d: not expecting piece \"%s\" after template closure\n",
-                    lineNumber,
-                    piece
-                );
-                compiler->cntErrors++; /* Increment error count */
-            }
-
-            compiler->templateInside = NULL; /* Reset templateInside */
+        if (strcmp(firstCmd, "endmacr") == 0) { /* Check for end of template */
+            confirmEndmacrInFirstCompile(mycomp, inputFile, outputFile, errorFile, commandNum, cmdString);
             continue; /* Continue to next iteration */
         }
 
-        if (strcmp(piece, "macr") == 0) { /* Check for template definition */
-            piece = firstPart(string); /* Get the next piece of string */
-            string = restString(string); /* Skip to the next piece */
-            strcpy(stringTemplate, piece); /* Copy piece to stringTemplate */
-
-            piece = firstPart(string); /* Get the next piece of string */
-            string = restString(string); /* Skip to the next piece */
-
-            if (*piece != '\0') { /* Check if piece is not empty */
-                fprintf(
-                    fileErrors,
-                    "on line #%d: not expecting piece \"%s\" after template opening\n",
-                    lineNumber,
-                    piece
-                );
-                compiler->cntErrors++; /* Increment error count */
-            }
-
-            label = Parser_searchSymbol(compiler, stringTemplate); /* Search for local label */
-            if (label != NULL) { /* Check if label exists */
-                fprintf(
-                    fileErrors,
-                    "on line #%d: name \"%s\" for template already used elsewhere as label\n",
-                    lineNumber,
-                    stringTemplate
-                );
-                compiler->cntErrors++; /* Increment error count */
-                continue; /* Continue to next iteration */
-            }
-
-            template = findInTemplates(compiler->templates, stringTemplate); /* Search for existing template */
-            if (template != NULL) { /* Check if template exists */
-                fprintf(
-                    fileErrors,
-                    "on line #%d: template with name \"%s\" already declared elsewhere\n",
-                    lineNumber,
-                    stringTemplate
-                );
-                compiler->cntErrors++; /* Increment error count */
-                continue; /* Continue to next iteration */
-            }
-
-            compiler->templateInside = recordTemplates(compiler->templates, stringTemplate); /* Record new template */
+        if (strcmp(firstCmd, "macr") == 0) { /* Check for template definition */
+            confirmMacrInFirstCompile(mycomp, inputFile, outputFile, errorFile, commandNum, cmdString);
             continue; /* Continue to next iteration */
         }
 
-        if (compiler->templateInside != NULL) { /* Check if inside a template */
-            insertTemplate(compiler->templateInside, buffer); /* Include line in template */
+        if (mycomp->tempInside != NULL) { /* Check if inside a template */
+            insertTemplate(mycomp->tempInside, bufStr); /* Include line in template */
             continue; /* Continue to next iteration */
         }
 
-        string = base; /* Reset string */
+        cmdString = original; /* Reset string */
 
-        piece = firstPart(string); /* Get the next piece of string */
-        string = restString(string); /* Skip to the next piece */
+        firstCmd = firstPart(cmdString); /* Get the next piece of string */
+        cmdString = restString(cmdString); /* Skip to the next piece */
+        /* Check if piece is not empty and if not a code command and if not a data command */
+        checkTemplate = *firstCmd != '\0' && !checkValidCodeName(firstCmd) && !checkValidCommand(firstCmd);
 
-        callTemplate = *piece != '\0'; /* Check if piece is not empty */
-        callTemplate = callTemplate && !LineCode_checkName(piece); /* Check if not a code line */
-        callTemplate = callTemplate && !checkValidCommand(piece); /* Check if not a data line */
+        if (checkTemplate) { /* Check if calling a template */
+            strcpy(callStr, firstCmd); /* Copy piece to stringCall */
 
-        if (callTemplate) { /* Check if calling a template */
-            strcpy(stringCall, piece); /* Copy piece to stringCall */
+            firstCmd = firstPart(cmdString); /* Get the next piece of string */
+            cmdString = restString(cmdString); /* Skip to the next piece */
 
-            piece = firstPart(string); /* Get the next piece of string */
-            string = restString(string); /* Skip to the next piece */
-
-            if (*piece != '\0') { /* Check if piece is not empty */
+            if (*firstCmd != '\0') { /* Check if piece is not empty */
                 fprintf(
-                    fileErrors,
+                    errorFile,
                     "on line #%d: not expecting piece \"%s\" after template call \"%s\"\n",
-                    lineNumber,
-                    piece,
-                    stringCall
+                    commandNum,
+                    firstCmd,
+                    callStr
                 );
-                compiler->cntErrors++; /* Increment error count */
+                mycomp->cntErrors++; /* Increment error count */
             }
 
-            template = findInTemplates(compiler->templates, stringCall); /* Search for template */
+            template = findInTemplates(mycomp->tempList, callStr); /* Search for template */
             if (template == NULL) { /* Check if template not found */
                 fprintf(
-                    fileErrors,
+                    errorFile,
                     "on line #%d: template call \"%s\" not found\n",
-                    lineNumber,
-                    stringCall
+                    commandNum,
+                    callStr
                 );
-                compiler->cntErrors++; /* Increment error count */
+                mycomp->cntErrors++; /* Increment error count */
                 continue; /* Continue to next iteration */
             }
 
             /* Parse each line of the template */
-            for (place = 0; place < template->size; place++) {
-                const char* template_string = template->arrayCommands[place];
-                Parser_parseLine(compiler, fileAfterTemplate, fileErrors, template_string, lineNumber);
+            for (i = 0; i < template->size; i++) {
+                const char* template_string = template->arrayCommands[i];
+                compileCommand(mycomp, outputFile, errorFile, template_string, commandNum);
             }
         } else {
-            Parser_parseLine(compiler, fileAfterTemplate, fileErrors, buffer, lineNumber); /* Parse current line */
+            compileCommand(mycomp, outputFile, errorFile, bufStr, commandNum); /* Parse current line */
         }
     }
-}
-
-/* Record an external label with its associated local address */
-void Parser_recordExternal(Compiler* compiler, const char* ext, int local) {
-    Symbol* label;
-
-    /* reallocate arrayExternals array needs resizing */
-    compiler->szExternals++; /* Increment the count of total externals */
-    compiler->arrayExternals = realloc(compiler->arrayExternals, sizeof(*compiler->arrayExternals) * compiler->szExternals);
-
-    label = malloc(sizeof(*label)); /* Allocate memory for a new Symbol structure */
-    compiler->arrayExternals[compiler->szExternals - 1] = label; /* Store the label in arrayExternals */
-
-    label->name = copyString(ext); /* Clone and store the external label name */
-    label->addr = local; /* Assign the local address to the external label */
-
-    
-}
-
-/* Record an entry label if it doesn't already exist */
-void Parser_recordEntry(Compiler* compiler, const char* entry) {
-    int place;
-
-    /* Check if the entry label already exists */
-    for (place = 0; place < compiler->szEntries; place++) {
-        if (strcmp(compiler->arrayEntries[place], entry) == 0) {
-            return; /* Return if the entry label is found */
-        }
-    }
-
-    /* Resize the arrayEntries array if needed */
-    compiler->szEntries++; /* Increment the count of total entries */
-    compiler->arrayEntries = realloc(compiler->arrayEntries, sizeof(*compiler->arrayEntries) * compiler->szEntries);
-
-    compiler->arrayEntries[compiler->szEntries - 1] = copyString(entry); /* Clone and store the entry label */
-    
-}
-
-/* Output object code to a file */
-void Parser_fileOutputObject(Compiler* compiler, FILE* file, int valueData) {
-    fprintf(file, "%04d %05o\n", compiler->programCounter, 0x7FFF & valueData); /* Print formatted output to file */
-
-    compiler->programCounter++; /* Increment the program counter */
 }
 
 /* Second pass of parsing assembler code */
-void Parser_second(Compiler* compiler, FILE* fileAfterTemplate, FILE* fileObject) {
-    char buffer[MAX_N]; /* Buffer to hold input lines */
+void secondCompile(Compiler* mycomp, FILE* outputFile, FILE* objectFile) {
+    char bufStr[MAX_N]; /* Buffer to hold input lines */
 
-    fprintf(fileObject, "%d %d\n", compiler->szCode, compiler->szCommand); /* Output sizes of code and data */
+    fprintf(objectFile, "%d %d\n", mycomp->szCode, mycomp->szCommand); /* Output sizes of code and data */
 
-    compiler->programCounter = 100; /* Reset program counter */
+    mycomp->numProgram = 100; /* Reset program counter */
 
-    while (fgets(buffer, MAX_N, fileAfterTemplate) != NULL) {
-        const char* base;
-        const char* string;
-        const char* piece;
+    while (fgets(bufStr, MAX_N, outputFile) != NULL) {
+        const char* original;
+        const char* commandStr;
+        const char* firstCmd;
 
-        string = buffer; /* Initialize string pointer */
+        commandStr = bufStr; /* Initialize string pointer */
 
-        base = string;
+        original = commandStr;
         while (1) {
-            piece = firstPart(string); /* Take the next piece of string */
-            string = restString(string); /* Skip to the next piece */
+            firstCmd = firstPart(commandStr); /* Take the next piece of string */
+            commandStr = restString(commandStr); /* Skip to the next piece */
 
-            piece = firstPart(string); /* Take the next piece of string */
-            string = restString(string); /* Skip to the next piece */
-            if (*piece != ':') {
+            firstCmd = firstPart(commandStr); /* Take the next piece of string */
+            commandStr = restString(commandStr); /* Skip to the next piece */
+            if (*firstCmd != ':') {
                 break; /* Exit loop if not a label */
             }
 
-            base = string; /* Update base pointer */
+            original = commandStr; /* Update base pointer */
         }
 
-        string = base; /* Reset string pointer */
+        commandStr = original; /* Reset string pointer */
 
-        piece = firstPart(string); /* Take the next piece of string */
+        firstCmd = firstPart(commandStr); /* Take the next piece of string */
 
-        if (LineCode_checkName(piece)) {
-            LineCode_writeToFile(compiler, string, fileObject); /* Write line of code to file */
+        if (checkValidCodeName(firstCmd)) {
+            LineCode_writeToFile(mycomp, commandStr, objectFile); /* Write line of code to file */
             continue; /* Continue to next iteration */
         }
 
-        if (checkValidCommand(piece)) {
-            writeCommandToFile(compiler, string, fileObject); /* Write line of data to file */
+        if (checkValidCommand(firstCmd)) {
+            writeCommandToFile(mycomp, commandStr, objectFile); /* Write line of data to file */
             continue; /* Continue to next iteration */
         }
     }
 
     /* Sort arrayEntries based on label addresses */
     while (1) {
-        int placeA;
-        int placeB;
-        int swaps;
-
-        swaps = 0;
-        for (placeA = 1; placeA < compiler->szEntries; placeA++) {
-            char* entryA = compiler->arrayEntries[placeA - 1];
-            char* entryB = compiler->arrayEntries[placeA - 0];
+        int i, j, swp = 0;
+        for (i = 1; i < mycomp->szEntries; i++) {
+            char* entryA = mycomp->arrayEntries[i - 1];
+            char* entryB = mycomp->arrayEntries[i - 0];
             Symbol* labelA = NULL;
             Symbol* labelB = NULL;
 
-            for (placeB = 0; placeB < compiler->szSymbols; placeB++) {
-                if (strcmp(compiler->arraySymbols[placeB]->name, entryA) == 0) {
-                    labelA = compiler->arraySymbols[placeB]; /* Find label A in locals */
+            for (j = 0; j < mycomp->szSymbols; j++) {
+                if (strcmp(mycomp->arraySymbols[j]->name, entryA) == 0) {
+                    labelA = mycomp->arraySymbols[j]; /* Find label A in locals */
                 }
-                if (strcmp(compiler->arraySymbols[placeB]->name, entryB) == 0) {
-                    labelB = compiler->arraySymbols[placeB]; /* Find label B in locals */
+                if (strcmp(mycomp->arraySymbols[j]->name, entryB) == 0) {
+                    labelB = mycomp->arraySymbols[j]; /* Find label B in locals */
                 }
             }
 
             if (labelA != NULL && labelB != NULL) {
                 if (labelA->addr > labelB->addr) {
-                    compiler->arrayEntries[placeA - 0] = entryA; /* Swap entries if necessary */
-                    compiler->arrayEntries[placeA - 1] = entryB;
-                    swaps++; /* Increment swap count */
+                    mycomp->arrayEntries[i - 0] = entryA; /* Swap entries if necessary */
+                    mycomp->arrayEntries[i - 1] = entryB;
+                    swp ++; /* Increment swap count */
                 }
             }
         }
 
-        if (swaps == 0) {
+        if (swp == 0) {
             break; /* Exit loop if no swaps were made */
         }
     }
 }
 
-/* Output external labels to a file */
-void Parser_fileOutputExternals(Compiler* compiler, FILE* fileExternals) {
-    int place;
-    Symbol* label;
-
-    for (place = 0; place < compiler->szExternals; place++) {
-        label = compiler->arrayExternals[place]; /* Get external label from vector */
-        fprintf(fileExternals, "%s 0%d\n", label->name, label->addr); /* Print external label info to file */
-    }
-}
-
-/* Output entry labels and their addresses to a file */
-void Parser_fileOutputEntries(Compiler* compiler, FILE* fileEntries) {
-    const char* name;
-    int placeA;
-    int placeB;
-    Symbol* label;
-
-    for (placeA = 0; placeA < compiler->szEntries; placeA++) {
-        name = compiler->arrayEntries[placeA]; /* Get entry name from vector */
-        for (placeB = 0; placeB < compiler->szSymbols; placeB++) {
-            label = compiler->arraySymbols[placeB]; /* Get local label from vector */
-            if (strcmp(label->name, name) == 0) {
-                fprintf(fileEntries, "%s %d\n", label->name, label->addr); /* Print entry info to file */
-            }
-        }
-    }
-}
-
-/* Record a local label if it doesn't already exist */
-static int Parser_recordSymbol(Compiler* compiler, const char* name) {
-    int place;
+/* Insert a local label if it doesn't already exist */
+int insertSymbol(Compiler* mycomp, const char* symbolName) {
+    int i;
     Symbol* label;
 
     /* Check if the local label already exists */
-    for (place = 0; place < compiler->szSymbols; place++) {
-        if (strcmp(compiler->arraySymbols[place]->name, name) == 0) {
+    for (i = 0; i < mycomp->szSymbols; i++) {
+        if (strcmp(mycomp->arraySymbols[i]->name, symbolName) == 0) {
             return 0; /* Return 0 if local label exists */
         }
     }
 
     /* Resize the arraySymbols array if needed */
-    compiler->szSymbols++; /* Increment the count of total locals */
-    compiler->arraySymbols = realloc(compiler->arraySymbols, sizeof(*compiler->arraySymbols) * compiler->szSymbols);
+    mycomp->szSymbols++; /* Increment the count of total locals */
+    mycomp->arraySymbols = realloc(mycomp->arraySymbols, sizeof(*mycomp->arraySymbols) * mycomp->szSymbols);
 
     label = malloc(sizeof(*label)); /* Allocate memory for a new Symbol structure */
-    compiler->arraySymbols[compiler->szSymbols - 1] = label; /* Store the label in arraySymbols */
+    mycomp->arraySymbols[mycomp->szSymbols - 1] = label; /* Store the label in arraySymbols */
 
-    label->name = copyString(name); /* Clone and store the local label name */
-    label->addr = compiler->programCounter; /* Assign the program counter to the local label */
+    label->name = copyString(symbolName); /* Clone and store the local label name */
+    label->addr = mycomp->numProgram; /* Assign the program counter to the local label */
 
     
 
-    return 1; /* Return 1 indicating successful recording */
+    return 1; /* Return 1 indicating successful inserting */
 }
 
 /* Search for a local label by name */
-static Symbol* Parser_searchSymbol(Compiler* compiler, const char* name) {
-    int place;
+Symbol* searchSymbol(Compiler* mycomp, const char* symbolName) {
+    int i;
     Symbol* label = NULL;
 
     /* Iterate through arraySymbols to find the local label */
-    for (place = 0; place < compiler->szSymbols; place++) {
-        if (strcmp(compiler->arraySymbols[place]->name, name) == 0) {
-            label = compiler->arraySymbols[place]; /* Assign the label if found */
+    for (i = 0; i < mycomp->szSymbols; i++) {
+        if (strcmp(mycomp->arraySymbols[i]->name, symbolName) == 0) {
+            label = mycomp->arraySymbols[i]; /* Assign the label if found */
             break; /* Exit loop if label is found */
         }
     }
@@ -456,54 +379,88 @@ static Symbol* Parser_searchSymbol(Compiler* compiler, const char* name) {
 }
 
 /* Parse a line of assembler code during the second pass */
-static void Parser_parseLine(Compiler* compiler, FILE* fileAfterTemplate, FILE* fileErrors, const char* string, int lineNumber) {
-    const char* base;
-    const char* piece;
-    int calculatedSize;
+void compileCommand(Compiler* mycomp, FILE* fileAfterTemplate, FILE* fileErrors, const char* string, int commandNum) {
+    const char* original;
+    const char* firstCmd;
+    int szCalculated;
 
     fputs(string, fileAfterTemplate); /* Output the line to fileAfterTemplate */
 
-    base = string;
+    original = string;
     while (1) {
-        piece = firstPart(string); /* Take the next piece of string */
+        firstCmd = firstPart(string); /* Take the next piece of string */
         string = restString(string); /* Skip to the next piece */
 
-        piece = firstPart(string); /* Take the next piece of string */
+        firstCmd = firstPart(string); /* Take the next piece of string */
         string = restString(string); /* Skip to the next piece */
-        if (*piece != ':') {
+        if (*firstCmd != ':') {
             break; /* Exit loop if not a label */
         }
 
-        base = string; /* Update base pointer */
+        original = string; /* Update base pointer */
     }
 
-    string = base; /* Reset string pointer */
+    string = original; /* Reset string pointer */
 
-    piece = firstPart(string); /* Take the next piece of string */
+    firstCmd = firstPart(string); /* Take the next piece of string */
 
-    if (LineCode_checkName(piece)) {
-        if (!LineCode_checkForm(string)) {
-            fprintf(fileErrors, "on line #%d: malformed instruction\n", lineNumber); /* Output error message */
-            compiler->cntErrors++; /* Increment error count */
+    if (checkValidCodeName(firstCmd)) {
+        if (!checkCodeFormatValidity(string)) {
+            fprintf(fileErrors, "on line #%d: malformed instruction\n", commandNum); /* Output error message */
+            mycomp->cntErrors++; /* Increment error count */
             return; /* Return if instruction is malformed */
         }
 
-        calculatedSize = LineCode_checkData(string); /* Check data size */
-        compiler->programCounter += calculatedSize; /* Increment program counter */
-        compiler->szCode += calculatedSize; /* Increment code size */
+        szCalculated = checkCodeDataValidity(string); /* Check data size */
+        mycomp->numProgram += szCalculated; /* Increment program counter */
+        mycomp->szCode += szCalculated; /* Increment code size */
         return;
     }
 
-    if (checkValidCommand(piece)) {
+    if (checkValidCommand(firstCmd)) {
         if (!checkCommandFormat(string)) {
-            fprintf(fileErrors, "on line #%d: malformed directive\n", lineNumber); /* Output error message */
-            compiler->cntErrors++; /* Increment error count */
+            fprintf(fileErrors, "on line #%d: malformed directive\n", commandNum); /* Output error message */
+            mycomp->cntErrors++; /* Increment error count */
             return; /* Return if directive is malformed */
         }
 
-        calculatedSize = checkCommandData(string); /* Check data size */
-        compiler->programCounter += calculatedSize; /* Increment program counter */
-        compiler->szCommand += calculatedSize; /* Increment data size */
+        szCalculated = checkCommandData(string); /* Check data size */
+        mycomp->numProgram += szCalculated; /* Increment program counter */
+        mycomp->szCommand += szCalculated; /* Increment data size */
         return;
     }
+}
+
+
+/* Insert an external label with its associated local address */
+void insertExternal(Compiler* mycomp, const char* ext, int addr) {
+    Symbol* label;
+
+    /* reallocate arrayExternals array needs resizing */
+    mycomp->szExternals++; /* Increment the count of total externals */
+    mycomp->arrayExternals = realloc(mycomp->arrayExternals, sizeof(*mycomp->arrayExternals) * mycomp->szExternals);
+
+    label = malloc(sizeof(*label)); /* Allocate memory for a new Symbol structure */
+    mycomp->arrayExternals[mycomp->szExternals - 1] = label; /* Store the label in arrayExternals */
+
+    label->name = copyString(ext); /* Clone and store the external label name */
+    label->addr = addr; /* Assign the local address to the external label */
+}
+
+/* Insert an entry label if it doesn't already exist */
+void insertEntry(Compiler* mycomp, const char* ent) {
+    int i;
+
+    /* Check if the entry label already exists */
+    for (i = 0; i < mycomp->szEntries; i++) {
+        if (strcmp(mycomp->arrayEntries[i], ent) == 0) {
+            return; /* Return if the entry label is found */
+        }
+    }
+
+    /* Resize the arrayEntries array if needed */
+    mycomp->szEntries++; /* Increment the count of total entries */
+    mycomp->arrayEntries = realloc(mycomp->arrayEntries, sizeof(*mycomp->arrayEntries) * mycomp->szEntries);
+
+    mycomp->arrayEntries[mycomp->szEntries - 1] = copyString(ent); /* Clone and store the entry label */
 }

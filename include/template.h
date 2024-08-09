@@ -31,6 +31,6 @@ void removeTemplates(Templates* templates);
 /* Searches for a template by title in the collection */
 Template* findInTemplates(Templates* templates, const char* searching);
 
-/* Records a template with the given title in the collection */
-Template* recordTemplates(Templates* templates, const char* title);
+/* Insert a template with the given title in the collection */
+Template* insertTemplates(Templates* templates, const char* title);
 

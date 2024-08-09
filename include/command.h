@@ -2,14 +2,11 @@
 
 #include "compiler.h"
 
-/* Checks if the provided command is valid */
+/* check given command name is valid */
 int checkValidCommand(const char* command);
 
-/* Checks the format of the given string */
+/* check given command format is valid */
 int checkCommandFormat(const char* command);
 
-/* Checks the validity of data in the provided string */
+/* check given command data is valid */
 int checkCommandData(const char* command);
-
-/* Writes the given string to the specified file */
-void writeCommandToFile(Compiler* compiler, const char* command, FILE* file);

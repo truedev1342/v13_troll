@@ -2,14 +2,26 @@
 
 #include "compiler.h"
 
-/* Checks if the given name is valid */
-int LineCode_checkName(const char* name);
+/* Argument classes for instructions */
+#define ARGUMENT_CLASS_NONE             (0)
+#define ARGUMENT_CLASS_IMMEDIATE        (1)
+#define ARGUMENT_CLASS_DIRECT           (2)
+#define ARGUMENT_CLASS_INDIRECT         (4)
+#define ARGUMENT_CLASS_REGISTER         (8)
 
-/* Checks the format of the provided phrase */
-int LineCode_checkForm(const char* phrase);
+/* Instruction structure */
+typedef struct {
+    const char* name; /* Name of the instruction */
+    int operationCode; /* Operation code of the instruction */
+    int arguments; /* Number of arguments the instruction takes */
+} Instruction;
 
-/* Checks the validity of the data in the phrase */
-int LineCode_checkData(const char* phrase);
+/* Checks validity if the given name is valid */
+int checkValidCodeName(const char* name);
 
-/* Writes the provided phrase to the specified output file */
-void LineCode_writeToFile(Compiler* compiler, const char* phrase, FILE* outputFile);
+/* Checks validity the format of the provided string */
+int checkCodeFormatValidity(const char* string);
+
+/* Checks the validity of the code data in the string */
+int checkCodeDataValidity(const char* string);
+

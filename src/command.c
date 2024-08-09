@@ -2,6 +2,7 @@
 
 #include "extra.h"
 #include "command.h"
+#include "output.h"
 
 static const char* validCommandList[] = {
     ".data",
@@ -22,205 +23,164 @@ int checkValidCommand(const char* command) {
     return 0; /* No match found */
 }
 
+/* check if a given string conforms to the format of entry command */
+
+int checkEntryCommand(const char* origin) {
+    const char* firstCmd;
+    firstCmd = firstPart(origin); /* Get the next piece */
+    origin = restString(origin); /* Skip to the next piece */
+
+    if (*firstCmd == '\0') {
+        return 0; /* Unexpected end of line */
+    }
+
+    firstCmd = firstPart(origin); /* Check for additional unexpected pieces */
+    if (*firstCmd != '\0') {
+        return 0; /* Additional unexpected pieces found */
+    }
+    return 1; /* Valid .entry format */
+}
+
+/* check if a given string conforms to the format of data command */
+int checkDataCommand(const char* origin) {
+    const char* firstCmd;
+    int result = 0, value = 0;
+    do {
+        firstCmd = firstPart(origin); /* Get the next piece */
+        origin = restString(origin); /* Skip to the next piece */
+
+        if (*firstCmd == '\0') {
+            return 0; /* Unexpected end of line */
+        }
+
+        result = sscanf(firstCmd, "%d", &value); /* Attempt to parse as integer */
+        if (result != 1) {
+            return 0; /* Failed to parse as integer */
+        }
+
+        firstCmd = firstPart(origin); /* Get the next piece */
+        origin = restString(origin); /* Skip to the next piece */
+
+        if (*firstCmd != ',' && *firstCmd != '\0') {
+            return 0; /* Invalid separator or end of line expected */
+        }
+
+    } while (*firstCmd != '\0'); /* Loop until end of line */
+
+    return 1; /* Valid .data format */
+}
+
+/* check if a given string conforms to the format of string command */
+int checkStringCommand(const char* origin) {
+    const char* firstCmd;
+    firstCmd = firstPart(origin); /* Get the next piece */
+    origin = restString(origin); /* Skip to the next piece */
+
+    if (*firstCmd == '\0' || *firstCmd != '"' || firstCmd[strlen(firstCmd) - 1] != '"') {
+        return 0; /* Invalid string format */
+    }
+
+    firstCmd = firstPart(origin); /* Check for additional unexpected pieces */
+    if (*firstCmd != '\0') {
+        return 0; /* Additional unexpected pieces found */
+    }
+
+    return 1; /* Valid .string format */
+}
+
+/* check if a given string conforms to the format of extern command */
+int checkExternCommand(const char* origin) {
+    const char* firstCmd;
+    firstCmd = firstPart(origin); /* Get the next piece */
+    origin = restString(origin); /* Skip to the next piece */
+
+    if (*firstCmd == '\0') {
+        return 0; /* Unexpected end of line */
+    }
+
+    firstCmd = firstPart(origin); /* Check for additional unexpected pieces */
+    if (*firstCmd != '\0') {
+        return 0; /* Additional unexpected pieces found */
+    }
+
+    return 1; /* Valid .extern format */
+}
+
 /* Function to check if a given string conforms to the format of a line data directive */
-int checkCommandFormat(const char* string) {
-    const char* piece;
-    int result;
-    int value;
+int checkCommandFormat(const char* origin) {
+    const char* firstCmd;
 
-    result = 0;
-    value = 0;
+    firstCmd = firstPart(origin); /* Get the first piece of the string */
+    origin = restString(origin); /* Skip to the next piece */
 
-    piece = firstPart(string); /* Get the first piece of the string */
-    string = restString(string); /* Skip to the next piece */
-
-    if (strcmp(piece, ".data") == 0) { /* Check if it's a .data line */
-        do {
-            piece = firstPart(string); /* Get the next piece */
-            string = restString(string); /* Skip to the next piece */
-
-            if (*piece == '\0') {
-                return 0; /* Unexpected end of line */
-            }
-
-            result = sscanf(piece, "%d", &value); /* Attempt to parse as integer */
-            if (result != 1) {
-                return 0; /* Failed to parse as integer */
-            }
-
-            piece = firstPart(string); /* Get the next piece */
-            string = restString(string); /* Skip to the next piece */
-
-            if (*piece != ',' && *piece != '\0') {
-                return 0; /* Invalid separator or end of line expected */
-            }
-
-        } while (*piece != '\0'); /* Loop until end of line */
-
-        return 1; /* Valid .data format */
-
+    if (strcmp(firstCmd, ".entry") == 0) { /* Check if it's a .entry line */
+        return checkEntryCommand(origin);
     }
-
-    if (strcmp(piece, ".entry") == 0) { /* Check if it's a .entry line */
-        piece = firstPart(string); /* Get the next piece */
-        string = restString(string); /* Skip to the next piece */
-
-        if (*piece == '\0') {
-            return 0; /* Unexpected end of line */
-        }
-
-        piece = firstPart(string); /* Check for additional unexpected pieces */
-        if (*piece != '\0') {
-            return 0; /* Additional unexpected pieces found */
-        }
-
-        return 1; /* Valid .entry format */
-
+    else if (strcmp(firstCmd, ".data") == 0) { /* Check if it's a .data line */
+        return checkDataCommand(origin);
     }
-
-    if (strcmp(piece, ".extern") == 0) { /* Check if it's a .extern line */
-        piece = firstPart(string); /* Get the next piece */
-        string = restString(string); /* Skip to the next piece */
-
-        if (*piece == '\0') {
-            return 0; /* Unexpected end of line */
-        }
-
-        piece = firstPart(string); /* Check for additional unexpected pieces */
-        if (*piece != '\0') {
-            return 0; /* Additional unexpected pieces found */
-        }
-
-        return 1; /* Valid .extern format */
-
+    else if (strcmp(firstCmd, ".string") == 0) { /* Check if it's a .string line */
+        return checkStringCommand(origin);
     }
-
-    if (strcmp(piece, ".string") == 0) { /* Check if it's a .string line */
-        piece = firstPart(string); /* Get the next piece */
-        string = restString(string); /* Skip to the next piece */
-
-        if (*piece == '\0' || *piece != '"' || piece[strlen(piece) - 1] != '"') {
-            return 0; /* Invalid string format */
-        }
-
-        piece = firstPart(string); /* Check for additional unexpected pieces */
-        if (*piece != '\0') {
-            return 0; /* Additional unexpected pieces found */
-        }
-
-        return 1; /* Valid .string format */
-
+    else if (strcmp(firstCmd, ".extern") == 0) { /* Check if it's a .extern line */
+        return checkExternCommand(origin);
     }
 
     return 0; /* Not recognized as any valid line data directive */
 }
+/* check given command data(data) is valid */
+int checkDataInData(const char* origin){
+    const char* firstCommand;
+    int szCalculated = 0;
+    do {
+        firstCommand = firstPart(origin); /* Get the next piece */
+        origin = restString(origin); /* Skip to the next piece */
 
-int checkCommandData(const char* string) {
-    const char* piece;
-    int calculatedSize;
+        if (*firstCommand == '\0') {
+            return 0; /* Unexpected end of line */
+        }
 
-    calculatedSize = 0;
+        szCalculated++; /* Count the number of data entries */
 
-    piece = firstPart(string); /* Get the first piece of the string */
-    string = restString(string); /* Skip to the next piece */
+        firstCommand = firstPart(origin); /* Get the next piece */
+        origin = restString(origin); /* Skip to the next piece */
 
-    if (strcmp(piece, ".data") == 0) { /* Check if it's a .data line */
-        do {
-            piece = firstPart(string); /* Get the next piece */
-            string = restString(string); /* Skip to the next piece */
+        if (*firstCommand != ',' && *firstCommand != '\0') {
+            return 0; /* Invalid separator or end of line expected */
+        }
 
-            if (*piece == '\0') {
-                return 0; /* Unexpected end of line */
-            }
+    } while (*firstCommand != '\0'); /* Loop until end of line */
 
-            calculatedSize++; /* Count the number of data entries */
+    return szCalculated; /* Return the calculated size of data entries */
+}
 
-            piece = firstPart(string); /* Get the next piece */
-            string = restString(string); /* Skip to the next piece */
+/* check given command data(string) is valid */
+int checkDataInString(const char* origin){
+    const char* firstCommand;
+    int szCalculated = 0;
+    firstCommand = firstPart(origin); /* Get the next piece */
+    origin = restString(origin); /* Skip to the next piece */
 
-            if (*piece != ',' && *piece != '\0') {
-                return 0; /* Invalid separator or end of line expected */
-            }
+    szCalculated = strlen(firstCommand) - 1; /* Calculate the length of the string excluding quotes */
 
-        } while (*piece != '\0'); /* Loop until end of line */
+    return szCalculated; /* Return the calculated size of the string */
+}
 
-        return calculatedSize; /* Return the calculated size of data entries */
+/* check given command data is valid */
+int checkCommandData(const char* origin) {
+    const char* firstCommand;
+    
 
+    firstCommand = firstPart(origin); /* Get the first piece of the string */
+    origin = restString(origin); /* Skip to the next piece */
+
+    if (strcmp(firstCommand, ".data") == 0) { /* Check if it's a .data line */
+        return checkDataInData(origin);
     }
 
-    if (strcmp(piece, ".string") == 0) { /* Check if it's a .string line */
-        piece = firstPart(string); /* Get the next piece */
-        string = restString(string); /* Skip to the next piece */
-
-        calculatedSize = strlen(piece) - 1; /* Calculate the length of the string excluding quotes */
-
-        return calculatedSize; /* Return the calculated size of the string */
-
+    else if (strcmp(firstCommand, ".string") == 0) { /* Check if it's a .string line */
+        return checkDataInString(origin);
     }
 
     return 0; /* Not recognized as any valid data directive */
-}
-
-void writeCommandToFile(
-    Compiler* compiler,
-    const char* string,
-    FILE* file
-) {
-    const char* piece;
-    int outputValue;
-    int value;
-
-    outputValue = 0;
-    value = 0;
-
-    piece = firstPart(string); /* Get the first piece of the string */
-    string = restString(string); /* Skip to the next piece */
-
-    if (strcmp(piece, ".data") == 0) { /* Check if it's a .data line */
-        do {
-            piece = firstPart(string); /* Get the next piece */
-            string = restString(string); /* Skip to the next piece */
-
-            sscanf(piece, "%d", &value); /* Convert the piece to an integer */
-
-            outputValue = value; /* Set the output value */
-            Parser_fileOutputObject(compiler, file, outputValue); /* Write to file */
-
-            piece = firstPart(string); /* Get the next piece */
-            string = restString(string); /* Skip to the next piece */
-
-        } while (*piece != '\0'); /* Loop until end of line */
-
-        return;
-
-    }
-
-    if (strcmp(piece, ".entry") == 0) { /* Check if it's a .entry line */
-        piece = firstPart(string); /* Get the next piece */
-        string = restString(string); /* Skip to the next piece */
-
-        Parser_recordEntry(compiler, piece); /* Record the entry */
-
-        return;
-
-    }
-
-    if (strcmp(piece, ".string") == 0) { /* Check if it's a .string line */
-        piece = firstPart(string); /* Get the next piece */
-        string = restString(string); /* Skip to the next piece */
-
-        piece++; /* Skip the opening quote */
-        while (*piece != '"') {
-            outputValue = *piece; /* Get the ASCII value of the character */
-            Parser_fileOutputObject(compiler, file, outputValue); /* Write to file */
-            piece++; /* Move to the next character */
-
-        }
-
-        Parser_fileOutputObject(compiler, file, 0); /* Write null terminator to file */
-
-        return;
-
-    }
-
 }

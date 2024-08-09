@@ -4,24 +4,20 @@
 
 #include "template.h"
 
-/* Address indicating absolute addressing */
 #define ADDRESS_ABS (4)
 
-/* Address indicating relative addressing */
 #define ADDRESS_REL (2)
 
-/* Address indicating external symbol */
 #define ADDRESS_EXT (1)
 
-/* Structure representing a local symbol */
 typedef struct {
-    char* name;     /* Name of the symbol */
-    int addr;    /* Address of the symbol */
+    char* name;     /* Name  */
+    int addr;    /* Address */
 } Symbol;
 
-/* Structure representing a compiler with various attributes */
+/* structure type of compiler */
 typedef struct {
-    int programCounter;         /* Program counter */
+    int numProgram;         /* Program counter */
 
     int szCode;               /* Size of code */
     int szCommand;               /* Size of command */
@@ -36,45 +32,93 @@ typedef struct {
     char** arrayEntries;       /* Array of entry symbols */
     int szEntries;           /* Total number of external symbols */
 
-    Templates* templates;             /* Pointer to templates */
-    Template* templateInside;         /* Pointer to template inside */
+    Templates* tempList;             /* Pointer to templates */
+    Template* tempInside;         /* Pointer to template inside */
 } Compiler;
 
-/* Creates a new compiler instance */
-Compiler* Parser_new();
+/*
+ * function name: createCompiler
+ * params: 
+ * desc: create a new compiler
+*/
+Compiler* createCompiler();
 
-/* Deletes a compiler instance, freeing its memory */
-void Parser_delete(Compiler* compiler);
+/*
+ * function name: removeCompiler
+ * params: 
+ *      mycomp: Compiler* (compiler to remove)
+ * desc: remove and free compiler
+*/
+void removeCompiler(Compiler* mycomp);
 
-/* Performs the first pass of parsing */
-void Parser_first(Compiler* compiler,
-                  FILE* fileInput,
-                  FILE* fileFirstParser,
-                  FILE* fileErrors);
+/*
+ * function name: firstCompile
+ * params: 
+ *      mycomp: Compiler* (compiler to compile)
+ *      inputFile: input file name
+ *      outputFile: output file name
+ *      errorFile: error log file name
+ * desc: perform first compiling
+*/
+void firstCompile(Compiler* mycomp, FILE* inputFile, FILE* outputFile, FILE* errorFile);
 
-/* Performs the second pass of parsing */
-void Parser_second(Compiler* compiler,
-                   FILE* fileFirstParser,
-                   FILE* fileOutputObject);
+/*
+ * function name: secondCompile
+ * params: 
+ *      mycomp: Compiler* (compiler to compile)
+ *      outputFile: output file name
+ *      objectFile: final object file name
+ * desc: perform second compile
+*/
+void secondCompile(Compiler* mycomp, FILE* outputFile, FILE* objectFile);
 
-/* Records an external symbol with its address */
-void Parser_recordExternal(Compiler* compiler,
-                           const char* external,
-                           int address);
+/*
+ * function name: insertExternal
+ * params: 
+ *      mycomp: Compiler* (compiler to insert)
+ *      ext: external name
+ *      addr: address
+ * desc: insert external symbol address
+*/
+void insertExternal(Compiler* mycomp, const char* ext, int addr);
 
-/* Records an entry symbol */
-void Parser_recordEntry(Compiler* compiler,
-                        const char* entry);
+/*
+ * function name: insertEntry
+ * params: 
+ *      mycomp: Compiler* (compiler to insert)
+ *      ent: entry name
+ * desc: insert entry symbol
+*/
+void insertEntry(Compiler* mycomp, const char* ent);
 
-/* Outputs the object file */
-void Parser_fileOutputObject(Compiler* compiler,
-                             FILE* fileOutputObject,
-                             int data);
+/*
+ * function name: insertSymbol
+ * params: 
+ *      mycomp: Compiler* (compiler to insert)
+ *      name: symbol name
+ * desc: insert symbol
+*/
+int insertSymbol(Compiler* mycomp, const char* name);
 
-/* Outputs the external symbols file */
-void Parser_fileOutputExternals(Compiler* compiler,
-                                FILE* fileOutputExternals);
+/*
+ * function name: searchSymbol
+ * params: 
+ *      mycomp: Compiler* (compiler to search)
+ *      name: symbol name
+ * desc: search symbol
+*/
+Symbol* searchSymbol(Compiler* mycomp, const char* name);
 
-/* Outputs the entry symbols file */
-void Parser_fileOutputEntries(Compiler* compiler,
-                              FILE* fileOutputEntries);
+
+/*
+ * function name: compileCommand
+ * params: 
+ *      mycomp: Compiler* (compiler to insert)
+ *      name: symbol name
+ * desc: compile command
+*/
+void compileCommand(Compiler* mycomp, FILE* fileAfterTemplate, FILE* fileErrors, const char* string, int lineNumber);
+
+
+/* function declarations */
+
